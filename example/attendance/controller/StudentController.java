@@ -1,12 +1,15 @@
 package com.example.attendance.controller;
 
 import com.example.attendance.entity.AttendanceRecord;
+import com.example.attendance.service.StudentService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import com.example.attendance.entity.Student;
 import com.example.attendance.result.Result;
 
 @RestController
+@RequestMapping("/student")
 public class StudentController {
     @GetMapping("/student/info")
     public String getstudentinfo() {
@@ -22,6 +25,8 @@ public class StudentController {
     public List<String> getstudentCourse() {
         return Arrays.asList("java EE开发实践", "高等数学", "机器学习");
     }
+
+
 
     @GetMapping("/student/info/{studenntId}")
     public Result<Student>
@@ -53,5 +58,19 @@ public class StudentController {
     updateAttendance(@RequestBody AttendanceRecord record){
         String updateMsg = String.format("学生%s在课程%s的考勤状态已更新为：%s",record.getStudentId(),record.getCoutseId(),record.getStatus());
         return Result.success(updateMsg);
+    }
+
+
+    @Autowired
+    private StudentService studentService;
+
+    @PostMapping("/create")
+    public Result<String> create(@RequestBody Student student){
+        return Result.success(studentService.createStudent(student));
+    }
+
+    @GetMapping("/{id}")
+    public Result<Student> getById(@PathVariable String id){
+        return Result.success(studentService.getStudentId(id));
     }
 }
