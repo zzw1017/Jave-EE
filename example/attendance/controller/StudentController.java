@@ -11,7 +11,7 @@ import com.example.attendance.result.Result;
 @RestController
 @RequestMapping("/student")
 public class StudentController {
-    @GetMapping("/student/info")
+   /* @GetMapping("/student/info")
     public String getstudentinfo() {
         return "姓名：朱正威，学号：42411121，班级：计算机科学与技术3班";
     }
@@ -58,7 +58,7 @@ public class StudentController {
     updateAttendance(@RequestBody AttendanceRecord record){
         String updateMsg = String.format("学生%s在课程%s的考勤状态已更新为：%s",record.getStudentId(),record.getCoutseId(),record.getStatus());
         return Result.success(updateMsg);
-    }
+    }*/
 
 
     @Autowired
