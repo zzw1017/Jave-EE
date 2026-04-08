@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import com.example.attendance.entity.Student;
 import com.example.attendance.result.Result;
-
+/*
 @RestController
 @RequestMapping("/student")
 public class StudentController {
@@ -59,7 +59,7 @@ public class StudentController {
         String updateMsg = String.format("学生%s在课程%s的考勤状态已更新为：%s",record.getStudentId(),record.getCoutseId(),record.getStatus());
         return Result.success(updateMsg);
     }*/
-
+/*
 
     @Autowired
     private StudentService studentService;
@@ -74,3 +74,4 @@ public class StudentController {
         return Result.success(studentService.getStudentId(id));
     }
 }
+*/
