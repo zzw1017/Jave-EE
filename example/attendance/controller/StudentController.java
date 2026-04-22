@@ -1,5 +1,47 @@
 package com.example.attendance.controller;
 
+import com.example.attendance.entity.Student;
+import com.example.attendance.service.StudentService;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/student")
+public class StudentController {
+    private final StudentService studentService;
+    public StudentController(StudentService studentService) {
+        this.studentService = studentService;
+    }
+
+    @PostMapping("/save")
+    public Student save(@RequestBody Student student) {
+        return studentService.save(student);
+    }
+
+    @GetMapping("/{id}")
+    public Optional<Student> getById(@PathVariable Long id) {
+        return studentService.findById(id);
+    }
+
+    @GetMapping("/username/{username}")
+    public Optional<Student> getByUsername(@PathVariable String username) {
+        return studentService.findByUsername(username);
+    }
+
+    @GetMapping("/list")
+    public List<Student> list() {
+        return studentService.findAll();
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        studentService.deleteById(id);
+    }
+}
+
+
+/*
 import com.example.attendance.entity.AttendanceRecord;
 import com.example.attendance.service.StudentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,7 +49,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import com.example.attendance.entity.Student;
 import com.example.attendance.result.Result;
-/*
+
 @RestController
 @RequestMapping("/student")
 public class StudentController {
