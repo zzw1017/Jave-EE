@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>我的请假</title>
+  <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body class="leave-page">
+
+<div class="leave-container">
+
+  <div class="leave-header">
+    <h1>我的请假</h1>
+    <p>提交请假申请并查看审批状态</p>
+
+    <a class="leave-btn leave-btn-back" th:href="@{/dashboard}">
+      返回首页
+    </a>
+  </div>
+
+  <div class="leave-card">
+    <h2>请假申请</h2>
+
+    <div class="leave-form-row">
+      <label>请假原因</label>
+      <textarea id="reason" class="leave-textarea" placeholder="请输入请假原因"></textarea>
+    </div>
+
+    <div class="leave-form-row">
+      <label>开始时间</label>
+      <input id="startTime" class="leave-input" type="datetime-local">
+    </div>
+
+    <div class="leave-form-row">
+      <label>结束时间</label>
+      <input id="endTime" class="leave-input" type="datetime-local">
+    </div>
+
+    <div class="leave-form-row">
+      <label></label>
+      <button class="leave-btn leave-btn-primary" onclick="submitLeave()">提交申请</button>
+      <button class="leave-btn leave-btn-gray" onclick="resetForm()">重置</button>
+    </div>
+
+    <div id="message" class="leave-message"></div>
+  </div>
+
+  <div class="leave-card">
+    <h2>
+      我的请假记录
+      <button class="leave-btn leave-btn-refresh" onclick="loadMyLeaves()">刷新</button>
+    </h2>
+
+    <table class="leave-table">
+      <thead>
+      <tr>
+        <th>请假原因</th>
+        <th>开始时间</th>
+        <th>结束时间</th>
+        <th>申请时间</th>
+        <th>状态</th>
+        <th>拒绝原因</th>
+        <th>操作</th>
+      </tr>
+      </thead>
+
+      <tbody id="leaveTableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div id="customModalMask" class="custom-modal-mask">
+  <div class="custom-modal">
+    <div id="customModalTitle" class="custom-modal-title">提示</div>
+    <div id="customModalContent" class="custom-modal-content"></div>
+
+    <textarea
+            id="customModalInput"
+            class="custom-modal-input"
+            placeholder="请输入内容"
+            style="display: none;"></textarea>
+
+    <div class="custom-modal-actions">
+      <button id="customModalCancel" class="custom-modal-btn custom-modal-cancel">
+        取消
+      </button>
+
+      <button id="customModalConfirm" class="custom-modal-btn custom-modal-confirm">
+        确定
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="customToast" class="custom-toast"></div>
+
+<script>
+  function escapeHtml(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+  }
+
+  function formatDateTimeLocal(value) {
+    if (!value) {
+      return '';
+    }
+
+    return value.length === 16 ? value + ':00' : value;
+  }
+
+  function statusText(status) {
+    if (status === 'PENDING') {
+      return '<span class="leave-tag leave-pending">待审批</span>';
+    }
+
+    if (status === 'APPROVED') {
+      return '<span class="leave-tag leave-approved">已通过</span>';
+    }
+
+    if (status === 'REJECTED') {
+      return '<span class="leave-tag leave-rejected">已拒绝</span>';
+    }
+
+    if (status === 'CANCELLED') {
+      return '<span class="leave-tag leave-cancelled">已撤回</span>';
+    }
+
+    return escapeHtml(status || '-');
+  }
+
+  function showMessage(text) {
+    document.getElementById('message').innerText = text;
+  }
+
+  function showToast(message, type = 'success') {
+    const toast = document.getElementById('customToast');
+
+    toast.innerText = message;
+    toast.className = 'custom-toast ' + type;
+    toast.style.display = 'block';
+
+    setTimeout(function () {
+      toast.style.display = 'none';
+    }, 1800);
+  }
+
+  function showConfirmDialog(options) {
+    return new Promise(resolve => {
+      const mask = document.getElementById('customModalMask');
+      const title = document.getElementById('customModalTitle');
+      const content = document.getElementById('customModalContent');
+      const input = document.getElementById('customModalInput');
+      const cancelBtn = document.getElementById('customModalCancel');
+      const confirmBtn = document.getElementById('customModalConfirm');
+
+      title.innerText = options.title || '提示';
+      content.innerHTML = options.content || '';
+      input.style.display = 'none';
+      input.value = '';
+
+      confirmBtn.innerText = options.confirmText || '确定';
+      cancelBtn.innerText = options.cancelText || '取消';
+
+      confirmBtn.className = 'custom-modal-btn ' +
+              (options.danger ? 'custom-modal-danger' : 'custom-modal-confirm');
+
+      mask.style.display = 'flex';
+
+      cancelBtn.onclick = function () {
+        mask.style.display = 'none';
+        resolve(false);
+      };
+
+      confirmBtn.onclick = function () {
+        mask.style.display = 'none';
+        resolve(true);
+      };
+    });
+  }
+
+  async function request(url, options = {}) {
+    const response = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      ...options
+    });
+
+    let result;
+
+    try {
+      result = await response.json();
+    } catch (e) {
+      throw new Error('服务器返回异常，请检查接口是否返回 JSON');
+    }
+
+    console.log('接口返回：', url, result);
+
+    if (!response.ok) {
+      throw new Error(result.message || result.msg || '请求失败');
+    }
+
+    if (result.code !== undefined && result.code !== null) {
+      const code = String(result.code);
+
+      if (code !== '200') {
+        throw new Error(result.message || result.msg || '操作失败');
+      }
+    }
+
+    return result;
+  }
+
+  function parseListResult(result) {
+    if (Array.isArray(result)) {
+      return result;
+    }
+
+    if (result && Array.isArray(result.data)) {
+      return result.data;
+    }
+
+    if (result && Array.isArray(result.records)) {
+      return result.records;
+    }
+
+    if (result && result.data && Array.isArray(result.data.content)) {
+      return result.data.content;
+    }
+
+    if (result && result.data && Array.isArray(result.data.records)) {
+      return result.data.records;
+    }
+
+    if (result && result.data && Array.isArray(result.data.list)) {
+      return result.data.list;
+    }
+
+    return [];
+  }
+
+  async function submitLeave() {
+    const reason = document.getElementById('reason').value.trim();
+    const startTime = formatDateTimeLocal(document.getElementById('startTime').value);
+    const endTime = formatDateTimeLocal(document.getElementById('endTime').value);
+
+    if (!reason) {
+      showToast('请输入请假原因', 'error');
+      return;
+    }
+
+    if (!startTime || !endTime) {
+      showToast('请选择开始时间和结束时间', 'error');
+      return;
+    }
+
+    if (endTime <= startTime) {
+      showToast('结束时间必须晚于开始时间', 'error');
+      return;
+    }
+
+    try {
+      await request('/leave/apply', {
+        method: 'POST',
+        body: JSON.stringify({
+          reason: reason,
+          startTime: startTime,
+          endTime: endTime
+        })
+      });
+
+      showMessage('请假申请提交成功');
+      showToast('请假申请提交成功', 'success');
+      resetForm();
+
+      setTimeout(function () {
+        loadMyLeaves();
+      }, 300);
+
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  function resetForm() {
+    document.getElementById('reason').value = '';
+    document.getElementById('startTime').value = '';
+    document.getElementById('endTime').value = '';
+  }
+
+  async function loadMyLeaves() {
+    try {
+      const result = await request('/leave/my', {
+        method: 'GET'
+      });
+
+      const list = parseListResult(result);
+
+      const tbody = document.getElementById('leaveTableBody');
+      tbody.innerHTML = '';
+
+      if (!list || list.length === 0) {
+        tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7">暂无请假记录</td>
+                    </tr>
+                `;
+        return;
+      }
+
+      list.forEach(item => {
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+                    <td class="leave-reason-cell">${escapeHtml(item.reason)}</td>
+                    <td>${escapeHtml(item.startTime)}</td>
+                    <td>${escapeHtml(item.endTime)}</td>
+                    <td>${escapeHtml(item.applyTime)}</td>
+                    <td>${statusText(item.status)}</td>
+                    <td>${escapeHtml(item.rejectReason || '-')}</td>
+                    <td>
+                        ${
+                item.status === 'PENDING'
+                        ? `<button class="leave-btn leave-btn-danger" onclick="cancelLeave(${item.id})">撤回</button>`
+                        : '-'
+        }
+                    </td>
+                `;
+
+        tbody.appendChild(tr);
+      });
+
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  async function cancelLeave(id) {
+    const confirmed = await showConfirmDialog({
+      title: '撤回请假申请',
+      content: '确定要撤回这条请假申请吗？',
+      confirmText: '撤回',
+      cancelText: '取消',
+      danger: true
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await request('/leave/cancel/' + id, {
+        method: 'POST'
+      });
+
+      showToast('撤回成功', 'success');
+      loadMyLeaves();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  window.onload = function () {
+    loadMyLeaves();
+  };
+</script>
+
+</body>
+</html>

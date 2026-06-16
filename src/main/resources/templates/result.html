@@ -1,12 +1,27 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
   <title>操作结果</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
-<body class="container mt-5">
-<div class="alert alert-info" th:text="${msg}"></div>
-<a th:href="@{/attendance/list}" class="btn btn-secondary">返回考勤列表</a>
+
+<body class="result-body">
+
+<div class="result-box">
+
+  <h2 class="result-title">操作结果</h2>
+
+  <div class="result-msg" th:text="${msg}">
+    操作完成
+  </div>
+
+  <a th:href="@{/dashboard}" class="result-btn">
+    返回系统首页
+  </a>
+
+</div>
+
 </body>
 </html>

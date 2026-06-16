@@ -1,11 +1,13 @@
 package com.example.attendance.controller;
 
+import com.example.attendance.config.AuthorizationInterceptor;
 import com.example.attendance.result.Result;
-import com.example.attendance.dto.LoginRequest;
-import com.example.attendance.dto.LoginResponse;
-import com.example.attendance.dto.RegisterRequest;
+import com.example.attendance.entity.LoginRequest;
+import com.example.attendance.entity.LoginResponse;
+import com.example.attendance.entity.RegisterRequest;
 import com.example.attendance.entity.User;
 import com.example.attendance.service.UserService;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -20,16 +22,17 @@ public class AuthController {
     private PasswordEncoder passwordEncoder;
 
     @PostMapping("/login")
-    public Result<LoginResponse> login(@RequestBody LoginRequest request) {
-        User user = userService.findByUsernameOrNull(request.getUsername());
+    public Result<LoginResponse> login(@RequestBody LoginRequest request, HttpSession session) {
+        if (request == null || isBlank(request.getUsername()) || isBlank(request.getPassword())) {
+            return Result.error("用户名和密码不能为空");
+        }
+        User user = userService.findByUsernameOrNull(request.getUsername().trim());
 
-        if (user == null) {
-            return Result.error("用户不存在");
+        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            return Result.error("用户名或密码错误");
         }
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            return Result.error("密码错误");
-        }
+        session.setAttribute(AuthorizationInterceptor.SESSION_USER, sessionUser(user));
 
         LoginResponse response = new LoginResponse(
                 user.getId(),
@@ -41,26 +44,33 @@ public class AuthController {
         return Result.success(response);
     }
 
-
     @PostMapping("/register")
     public Result<String> register(@RequestBody RegisterRequest request) {
-        if (userService.existsByUsername(request.getUsername())) {
+        if (request == null || isBlank(request.getUsername()) || isBlank(request.getPassword()) || isBlank(request.getRealName())) {
+            return Result.error("用户名、密码和真实姓名不能为空");
+        }
+        String username = request.getUsername().trim();
+        if (userService.existsByUsername(username)) {
             return Result.error("用户名已存在");
         }
 
         User user = new User();
-        user.setUsername(request.getUsername());
+        user.setUsername(username);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRealName(request.getRealName());
+        user.setRealName(request.getRealName().trim());
 
-        if (request.getRole() == null || request.getRole().trim().isEmpty()) {
-            user.setRole("STUDENT");
-        } else {
-            user.setRole(request.getRole());
-        }
+        user.setRole("STUDENT");
 
         userService.addUser(user);
 
         return Result.success("注册成功");
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private User sessionUser(User user) {
+        return new User( user.getUsername(), user.getId(),user.getRealName(),null,user.getCreateTime(), user.getRole(), user.getMustChangePassword());
     }
 }

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>考勤记录</title>
+  <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body>
+
+<div class="attendance-container">
+
+  <div class="attendance-header">
+    <a th:href="@{/dashboard}" class="back-home">🏠 返回系统首页</a>
+    <h1>考勤记录</h1>
+  </div>
+
+  <div class="attendance-toolbar">
+    <div class="toolbar-inner">
+
+      <form th:action="@{/attendance/page/list}" method="get" class="toolbar-left">
+
+        <select name="courseId">
+          <option value="">全部课程</option>
+
+          <option th:each="course : ${courseList}"
+                  th:value="${course.id}"
+                  th:text="${course.courseName}"
+                  th:selected="${courseId != null and courseId == course.id}">
+            课程名称
+          </option>
+        </select>
+
+        <select name="timeType">
+          <option value="all" th:selected="${timeType == 'all'}">全部时间</option>
+          <option value="today" th:selected="${timeType == 'today'}">今天</option>
+          <option value="week" th:selected="${timeType == 'week'}">本周</option>
+          <option value="month" th:selected="${timeType == 'month'}">本月</option>
+        </select>
+
+        <button type="submit" class="btn btn-primary">查询</button>
+
+        <a th:href="@{/attendance/page/list}" class="btn btn-secondary">重置</a>
+      </form>
+
+      <div class="toolbar-right">
+        <a th:href="@{/attendance/page/export(courseId=${courseId}, timeType=${timeType})}"
+           class="btn btn-success">
+          导出 Excel
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <table class="attendance-table">
+    <thead>
+    <tr>
+      <th>序号</th>
+      <th>学生姓名</th>
+      <th>用户名</th>
+      <th>课程</th>
+      <th>打卡时间</th>
+      <th>签退时间</th>
+      <th>打卡IP</th>
+      <th>状态</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <tr th:each="a, stat : ${attList}">
+      <td th:text="${stat.count}">1</td>
+      <td th:text="${a.realName}">张三</td>
+      <td th:text="${a.username}">student01</td>
+      <td th:text="${a.courseName}">Java程序设计</td>
+
+      <td th:text="${#dates.format(a.checkInTime, 'yyyy-MM-dd HH:mm:ss')}">
+        2026-06-13 21:53:34
+      </td>
+
+      <td>
+                <span th:if="${a.checkOutTime != null}"
+                      th:text="${#dates.format(a.checkOutTime, 'yyyy-MM-dd HH:mm:ss')}">
+                    2026-06-13 22:00:00
+                </span>
+
+        <span th:if="${a.checkOutTime == null}">
+                    未签退
+                </span>
+      </td>
+
+      <td th:text="${a.ip}">127.0.0.1</td>
+
+      <td>
+        <span class="status" th:text="${a.status}">已打卡</span>
+      </td>
+    </tr>
+
+    <tr th:if="${#lists.isEmpty(attList)}">
+      <td colspan="8" class="empty">暂无考勤记录</td>
+    </tr>
+    </tbody>
+  </table>
+
+</div>
+
+</body>
+</html>

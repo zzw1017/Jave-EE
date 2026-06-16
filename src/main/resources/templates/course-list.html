@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>课程管理</title>
+
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body>
+
+<div class="course-container">
+
+    <div class="course-header">
+        <a th:href="@{/dashboard}" class="course-back-home">🏠 返回系统首页</a>
+        <h1>课程管理</h1>
+    </div>
+
+    <div th:if="${msg}" class="course-alert-success" th:text="${msg}"></div>
+    <div th:if="${errorMsg}" class="course-alert-danger" th:text="${errorMsg}"></div>
+
+    <div class="course-toolbar">
+        <a th:href="@{/course/page/add}" class="course-btn course-btn-success">
+            新增课程
+        </a>
+    </div>
+
+    <table class="course-table">
+        <thead>
+        <tr>
+            <th>序号</th>
+            <th>课程名称</th>
+            <th>每周上课时间</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+
+        <tbody>
+        <tr th:each="course, stat : ${courseList}">
+            <td th:text="${stat.count}">1</td>
+
+            <td th:text="${course.courseName}">
+                Java程序设计
+            </td>
+
+            <td>
+                <div class="course-schedule-text"
+                     th:attr="data-course-id=${course.id}">
+                    加载中...
+                </div>
+            </td>
+
+            <td>
+                <div class="course-operation">
+
+                    <button type="button"
+                            class="course-btn course-btn-warning"
+                            th:attr="data-course-id=${course.id},data-course-name=${course.courseName}"
+                            onclick="openScheduleModal(this)">
+                        课表
+                    </button>
+
+                    <a th:href="@{/course/page/edit/{id}(id=${course.id})}"
+                       class="course-btn course-btn-primary">
+                        编辑
+                    </a>
+
+                    <form th:action="@{/course/page/delete/{id}(id=${course.id})}"
+                          method="post">
+                        <button type="submit"
+                                class="course-btn course-btn-danger"
+                                onclick="return confirm('确定删除该课程吗？')">
+                            删除
+                        </button>
+                    </form>
+
+                </div>
+            </td>
+        </tr>
+
+        <tr th:if="${#lists.isEmpty(courseList)}">
+            <td colspan="4" class="course-empty">暂无课程信息</td>
+        </tr>
+        </tbody>
+    </table>
+
+</div>
+
+<!-- 课程每周上课时间弹窗 -->
+<div id="scheduleModalMask" class="custom-modal-mask">
+    <div class="custom-modal schedule-modal">
+
+        <div class="custom-modal-title">
+            课程课表设置
+        </div>
+
+        <div class="custom-modal-content">
+            当前课程：
+            <strong id="scheduleCourseName">-</strong>
+        </div>
+
+        <input type="hidden" id="scheduleCourseId">
+
+        <div class="schedule-form">
+            <label>星期</label>
+            <select id="weekDay">
+                <option value="1">周一</option>
+                <option value="2">周二</option>
+                <option value="3">周三</option>
+                <option value="4">周四</option>
+                <option value="5">周五</option>
+                <option value="6">周六</option>
+                <option value="7">周日</option>
+            </select>
+
+            <label>开始时间</label>
+            <input type="time" id="scheduleStartTime">
+
+            <label>结束时间</label>
+            <input type="time" id="scheduleEndTime">
+
+            <label>上课地点</label>
+            <input type="text" id="scheduleLocation" placeholder="例如：A101">
+        </div>
+
+        <button type="button"
+                class="course-btn course-btn-success schedule-add-btn"
+                onclick="saveSchedule()">
+            添加上课时间
+        </button>
+
+        <table class="course-table schedule-table">
+            <thead>
+            <tr>
+                <th>星期</th>
+                <th>时间</th>
+                <th>地点</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+
+            <tbody id="scheduleTableBody">
+            </tbody>
+        </table>
+
+        <div class="custom-modal-actions">
+            <button type="button"
+                    class="custom-modal-btn custom-modal-cancel"
+                    onclick="closeScheduleModal()">
+                关闭
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="customToast" class="custom-toast"></div>
+
+<script>
+    let currentScheduleCourseId = null;
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('customToast');
+
+        toast.innerText = message;
+        toast.className = 'custom-toast ' + type;
+        toast.style.display = 'block';
+
+        setTimeout(function () {
+            toast.style.display = 'none';
+        }, 1800);
+    }
+
+    function weekText(day) {
+        const map = {
+            1: '周一',
+            2: '周二',
+            3: '周三',
+            4: '周四',
+            5: '周五',
+            6: '周六',
+            7: '周日'
+        };
+
+        return map[day] || '-';
+    }
+
+    async function requestJson(url, options = {}) {
+        const response = await fetch(url, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            ...options
+        });
+
+        let result;
+
+        try {
+            result = await response.json();
+        } catch (e) {
+            throw new Error('服务器返回异常，请检查接口是否返回 JSON');
+        }
+
+        console.log('接口返回：', url, result);
+
+        if (!response.ok) {
+            throw new Error(result.message || result.msg || '请求失败');
+        }
+
+        if (result.code !== undefined && result.code !== null) {
+            const code = String(result.code);
+            if (code !== '200') {
+                throw new Error(result.msg || result.message || '操作失败');
+            }
+        }
+
+        return result;
+    }
+
+    async function loadAllCourseSchedules() {
+        const cells = document.querySelectorAll('.course-schedule-text');
+
+        for (const cell of cells) {
+            const courseId = cell.getAttribute('data-course-id');
+
+            try {
+                const result = await requestJson('/courseSchedule/course/' + courseId, {
+                    method: 'GET'
+                });
+
+                const list = result.data || [];
+
+                if (list.length === 0) {
+                    cell.innerText = '暂无上课时间';
+                    continue;
+                }
+
+                cell.innerHTML = list.map(item => {
+                    let text = weekText(item.weekDay) + ' ' + item.startTime + '-' + item.endTime;
+
+                    if (item.location) {
+                        text += ' ｜ ' + item.location;
+                    }
+
+                    return `<div class="course-schedule-item">${text}</div>`;
+                }).join('');
+
+            } catch (e) {
+                cell.innerText = '加载失败';
+            }
+        }
+    }
+
+    async function openScheduleModal(button) {
+        const courseId = button.getAttribute('data-course-id');
+        const courseName = button.getAttribute('data-course-name');
+
+        currentScheduleCourseId = courseId;
+
+        document.getElementById('scheduleCourseId').value = courseId;
+        document.getElementById('scheduleCourseName').innerText = courseName;
+        document.getElementById('scheduleModalMask').style.display = 'flex';
+
+        clearScheduleForm();
+
+        await loadScheduleList(courseId);
+    }
+
+    function closeScheduleModal() {
+        document.getElementById('scheduleModalMask').style.display = 'none';
+    }
+
+    function clearScheduleForm() {
+        document.getElementById('weekDay').value = '1';
+        document.getElementById('scheduleStartTime').value = '';
+        document.getElementById('scheduleEndTime').value = '';
+        document.getElementById('scheduleLocation').value = '';
+    }
+
+    async function loadScheduleList(courseId) {
+        try {
+            const result = await requestJson('/courseSchedule/course/' + courseId, {
+                method: 'GET'
+            });
+
+            const list = result.data || [];
+
+            const tbody = document.getElementById('scheduleTableBody');
+            tbody.innerHTML = '';
+
+            if (list.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4">暂无上课时间</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+
+                tr.innerHTML = `
+                    <td>${weekText(item.weekDay)}</td>
+                    <td>${item.startTime} - ${item.endTime}</td>
+                    <td>${item.location || '-'}</td>
+                    <td>
+                        <button type="button"
+                                class="course-btn course-btn-danger"
+                                onclick="deleteSchedule(${item.id})">
+                            删除
+                        </button>
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    async function saveSchedule() {
+        const courseId = document.getElementById('scheduleCourseId').value;
+        const weekDay = document.getElementById('weekDay').value;
+        const startTime = document.getElementById('scheduleStartTime').value;
+        const endTime = document.getElementById('scheduleEndTime').value;
+        const location = document.getElementById('scheduleLocation').value.trim();
+
+        if (!startTime || !endTime) {
+            showToast('请选择开始时间和结束时间', 'error');
+            return;
+        }
+
+        if (endTime <= startTime) {
+            showToast('结束时间必须晚于开始时间', 'error');
+            return;
+        }
+
+        try {
+            await requestJson('/courseSchedule/save', {
+                method: 'POST',
+                body: JSON.stringify({
+                    courseId: Number(courseId),
+                    weekDay: Number(weekDay),
+                    startTime: startTime,
+                    endTime: endTime,
+                    location: location
+                })
+            });
+
+            showToast('上课时间添加成功', 'success');
+
+            clearScheduleForm();
+
+            await loadScheduleList(courseId);
+            await loadAllCourseSchedules();
+
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    async function deleteSchedule(id) {
+        if (!confirm('确定删除这个上课时间吗？')) {
+            return;
+        }
+
+        try {
+            await requestJson('/courseSchedule/delete/' + id, {
+                method: 'POST'
+            });
+
+            showToast('删除成功', 'success');
+
+            await loadScheduleList(currentScheduleCourseId);
+            await loadAllCourseSchedules();
+
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    window.onload = function () {
+        loadAllCourseSchedules();
+    };
+</script>
+
+</body>
+</html>

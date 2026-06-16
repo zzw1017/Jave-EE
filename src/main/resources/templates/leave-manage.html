@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>请假管理</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body class="leave-page">
+
+<div class="leave-container">
+
+    <div class="leave-header">
+        <h1>请假管理</h1>
+        <p>查看学生请假申请并进行审批</p>
+
+        <a class="leave-btn leave-btn-back" th:href="@{/dashboard}">
+            返回首页
+        </a>
+    </div>
+
+    <div class="leave-card">
+        <h2>请假申请列表</h2>
+
+        <div class="leave-search-box">
+            <label>学号</label>
+            <input id="studentId" type="text" placeholder="请输入学号">
+
+            <label>状态</label>
+            <select id="status">
+                <option value="">全部</option>
+                <option value="PENDING">待审批</option>
+                <option value="APPROVED">已通过</option>
+                <option value="REJECTED">已拒绝</option>
+                <option value="CANCELLED">已撤回</option>
+            </select>
+
+            <label>开始时间</label>
+            <input id="startTime" type="datetime-local">
+
+            <label>结束时间</label>
+            <input id="endTime" type="datetime-local">
+
+            <button class="leave-btn leave-btn-primary" onclick="searchLeaves()">查询</button>
+            <button class="leave-btn leave-btn-gray" onclick="resetSearch()">重置</button>
+        </div>
+
+        <table class="leave-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>学号</th>
+                <th>请假原因</th>
+                <th>开始时间</th>
+                <th>结束时间</th>
+                <th>申请时间</th>
+                <th>状态</th>
+                <th>审批时间</th>
+                <th>审批人ID</th>
+                <th>拒绝原因</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+
+            <tbody id="leaveTableBody"></tbody>
+        </table>
+
+        <div class="leave-pagination">
+            <button class="leave-btn leave-btn-gray" onclick="prevPage()">上一页</button>
+            <span id="pageInfo">第 1 页 / 共 0 条</span>
+            <button class="leave-btn leave-btn-gray" onclick="nextPage()">下一页</button>
+
+            <select id="pageSize" onchange="changePageSize()">
+                <option value="5">5条/页</option>
+                <option value="10" selected>10条/页</option>
+                <option value="20">20条/页</option>
+            </select>
+        </div>
+    </div>
+
+</div>
+
+<div id="customModalMask" class="custom-modal-mask">
+    <div class="custom-modal">
+        <div id="customModalTitle" class="custom-modal-title">提示</div>
+
+        <div id="customModalContent" class="custom-modal-content"></div>
+
+        <textarea
+                id="customModalInput"
+                class="custom-modal-input"
+                placeholder="请输入拒绝原因"
+                style="display: none;"></textarea>
+
+        <div class="custom-modal-actions">
+            <button id="customModalCancel" class="custom-modal-btn custom-modal-cancel">
+                取消
+            </button>
+
+            <button id="customModalConfirm" class="custom-modal-btn custom-modal-confirm">
+                确定
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="customToast" class="custom-toast"></div>
+
+<script>
+    let currentPage = 1;
+    let pageSize = 10;
+    let totalElements = 0;
+    let totalPages = 0;
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) {
+            return '';
+        }
+
+        return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function formatDateTimeLocal(value) {
+        if (!value) {
+            return null;
+        }
+
+        return value.length === 16 ? value + ':00' : value;
+    }
+
+    function statusText(status) {
+        if (status === 'PENDING') {
+            return '<span class="leave-tag leave-pending">待审批</span>';
+        }
+
+        if (status === 'APPROVED') {
+            return '<span class="leave-tag leave-approved">已通过</span>';
+        }
+
+        if (status === 'REJECTED') {
+            return '<span class="leave-tag leave-rejected">已拒绝</span>';
+        }
+
+        if (status === 'CANCELLED') {
+            return '<span class="leave-tag leave-cancelled">已撤回</span>';
+        }
+
+        return escapeHtml(status || '-');
+    }
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('customToast');
+
+        toast.innerText = message;
+        toast.className = 'custom-toast ' + type;
+        toast.style.display = 'block';
+
+        setTimeout(function () {
+            toast.style.display = 'none';
+        }, 1800);
+    }
+
+    function showConfirmDialog(options) {
+        return new Promise(resolve => {
+            const mask = document.getElementById('customModalMask');
+            const title = document.getElementById('customModalTitle');
+            const content = document.getElementById('customModalContent');
+            const input = document.getElementById('customModalInput');
+            const cancelBtn = document.getElementById('customModalCancel');
+            const confirmBtn = document.getElementById('customModalConfirm');
+
+            title.innerText = options.title || '提示';
+            content.innerHTML = options.content || '';
+            input.style.display = 'none';
+            input.value = '';
+
+            confirmBtn.innerText = options.confirmText || '确定';
+            cancelBtn.innerText = options.cancelText || '取消';
+
+            confirmBtn.className = 'custom-modal-btn ' +
+                (options.danger ? 'custom-modal-danger' : 'custom-modal-confirm');
+
+            mask.style.display = 'flex';
+
+            cancelBtn.onclick = function () {
+                mask.style.display = 'none';
+                resolve(false);
+            };
+
+            confirmBtn.onclick = function () {
+                mask.style.display = 'none';
+                resolve(true);
+            };
+        });
+    }
+
+    function showPromptDialog(options) {
+        return new Promise(resolve => {
+            const mask = document.getElementById('customModalMask');
+            const title = document.getElementById('customModalTitle');
+            const content = document.getElementById('customModalContent');
+            const input = document.getElementById('customModalInput');
+            const cancelBtn = document.getElementById('customModalCancel');
+            const confirmBtn = document.getElementById('customModalConfirm');
+
+            title.innerText = options.title || '提示';
+            content.innerHTML = options.content || '';
+            input.style.display = 'block';
+            input.value = '';
+
+            confirmBtn.innerText = options.confirmText || '确定';
+            cancelBtn.innerText = options.cancelText || '取消';
+            confirmBtn.className = 'custom-modal-btn custom-modal-danger';
+
+            mask.style.display = 'flex';
+
+            cancelBtn.onclick = function () {
+                mask.style.display = 'none';
+                resolve(null);
+            };
+
+            confirmBtn.onclick = function () {
+                const value = input.value.trim();
+
+                if (!value) {
+                    showToast('请输入拒绝原因', 'error');
+                    return;
+                }
+
+                mask.style.display = 'none';
+                resolve(value);
+            };
+        });
+    }
+
+    async function request(url, options = {}) {
+        const response = await fetch(url, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            ...options
+        });
+
+        let result;
+
+        try {
+            result = await response.json();
+        } catch (e) {
+            throw new Error('服务器返回异常，请检查接口是否返回 JSON');
+        }
+
+        console.log('接口返回：', url, result);
+
+        if (!response.ok) {
+            throw new Error(result.message || result.msg || '请求失败');
+        }
+
+        if (result.code !== undefined && result.code !== null) {
+            const code = String(result.code);
+
+            if (code !== '200') {
+                throw new Error(result.message || result.msg || '操作失败');
+            }
+        }
+
+        return result;
+    }
+
+    function buildQuery() {
+        const studentIdValue = document.getElementById('studentId').value.trim();
+        const statusValue = document.getElementById('status').value;
+        const startTimeValue = document.getElementById('startTime').value;
+        const endTimeValue = document.getElementById('endTime').value;
+
+        return {
+            studentId: studentIdValue ? studentIdValue : null,
+            status: statusValue || null,
+            startTime: formatDateTimeLocal(startTimeValue),
+            endTime: formatDateTimeLocal(endTimeValue),
+            page: currentPage,
+            size: pageSize,
+            sortBy: 'applyTime',
+            direction: 'desc'
+        };
+    }
+
+    function parsePageResult(result) {
+        let pageData = null;
+
+        if (result && result.data) {
+            pageData = result.data;
+        } else {
+            pageData = result;
+        }
+
+        let list = [];
+
+        if (Array.isArray(pageData)) {
+            list = pageData;
+            totalElements = pageData.length;
+            totalPages = 1;
+        } else if (pageData && Array.isArray(pageData.content)) {
+            list = pageData.content;
+            totalElements = pageData.totalElements || list.length;
+            totalPages = pageData.totalPages || 1;
+        } else if (pageData && Array.isArray(pageData.records)) {
+            list = pageData.records;
+            totalElements = pageData.total || list.length;
+            totalPages = Math.ceil(totalElements / pageSize);
+        } else if (pageData && Array.isArray(pageData.list)) {
+            list = pageData.list;
+            totalElements = pageData.total || list.length;
+            totalPages = Math.ceil(totalElements / pageSize);
+        } else {
+            list = [];
+            totalElements = 0;
+            totalPages = 0;
+        }
+
+        return list;
+    }
+
+    async function searchLeaves() {
+        try {
+            const result = await request('/leave/search', {
+                method: 'POST',
+                body: JSON.stringify(buildQuery())
+            });
+
+            const list = parsePageResult(result);
+
+            renderTable(list);
+            renderPageInfo();
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    function renderTable(list) {
+        const tbody = document.getElementById('leaveTableBody');
+        tbody.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="11">暂无请假数据</td>
+                </tr>
+            `;
+            return;
+        }
+
+        list.forEach(item => {
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${escapeHtml(item.id)}</td>
+                <td>${escapeHtml(item.studentId)}</td>
+                <td class="leave-reason-cell">${escapeHtml(item.reason)}</td>
+                <td>${escapeHtml(item.startTime)}</td>
+                <td>${escapeHtml(item.endTime)}</td>
+                <td>${escapeHtml(item.applyTime)}</td>
+                <td>${statusText(item.status)}</td>
+                <td>${escapeHtml(item.approveTime || '-')}</td>
+                <td>${escapeHtml(item.approverId || '-')}</td>
+                <td>${escapeHtml(item.rejectReason || '-')}</td>
+                <td>
+                    ${
+                item.status === 'PENDING'
+                    ? `
+                                <button class="leave-btn leave-btn-success" onclick="approveLeave(${item.id})">
+                                    通过
+                                </button>
+                                <button class="leave-btn leave-btn-danger" onclick="rejectLeave(${item.id})">
+                                    拒绝
+                                </button>
+                              `
+                    : '-'
+            }
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderPageInfo() {
+        document.getElementById('pageInfo').innerText =
+            `第 ${currentPage} 页 / 共 ${totalPages} 页 / 共 ${totalElements} 条`;
+    }
+
+    async function approveLeave(id) {
+        const confirmed = await showConfirmDialog({
+            title: '通过请假申请',
+            content: '确定要通过这条请假申请吗？',
+            confirmText: '通过',
+            cancelText: '取消'
+        });
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            await request('/leave/approve', {
+                method: 'POST',
+                body: JSON.stringify({
+                    leaveId: id,
+                    status: 'APPROVED'
+                })
+            });
+
+            showToast('审批通过成功', 'success');
+            searchLeaves();
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    async function rejectLeave(id) {
+        const reason = await showPromptDialog({
+            title: '拒绝请假申请',
+            content: '请填写拒绝原因：',
+            confirmText: '拒绝',
+            cancelText: '取消'
+        });
+
+        if (reason === null) {
+            return;
+        }
+
+        try {
+            await request('/leave/approve', {
+                method: 'POST',
+                body: JSON.stringify({
+                    leaveId: id,
+                    status: 'REJECTED',
+                    rejectReason: reason
+                })
+            });
+
+            showToast('已拒绝该请假申请', 'success');
+            searchLeaves();
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    function resetSearch() {
+        document.getElementById('studentId').value = '';
+        document.getElementById('status').value = '';
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
+
+        currentPage = 1;
+        searchLeaves();
+    }
+
+    function prevPage() {
+        if (currentPage <= 1) {
+            return;
+        }
+
+        currentPage--;
+        searchLeaves();
+    }
+
+    function nextPage() {
+        if (currentPage >= totalPages) {
+            return;
+        }
+
+        currentPage++;
+        searchLeaves();
+    }
+
+    function changePageSize() {
+        pageSize = Number(document.getElementById('pageSize').value);
+        currentPage = 1;
+        searchLeaves();
+    }
+
+    window.onload = function () {
+        searchLeaves();
+    };
+</script>
+
+</body>
+</html>

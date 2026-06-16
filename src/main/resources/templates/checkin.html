@@ -1,34 +1,255 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>签到</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>考勤打卡</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
+
 <body>
-<div th:replace="~{fragments/navbar::navbar}"></div>
-<div class="container mt-5">
-    <h3 class="text-center">学生签到</h3>
-    <form th:action="@{/attendance/checkin}" method="post" class="mt-4">
-        <div class="mb-3">
-            <label>课程编号</label>
-            <input type="number" name="courseId" class="form-control" required>
+
+<div class="checkin-page">
+
+    <div class="checkin-header">
+        <a th:href="@{/dashboard}" class="checkin-back">🏠 返回系统首页</a>
+        <h1>课程考勤打卡</h1>
+    </div>
+
+    <div class="checkin-card">
+
+        <div class="checkin-user">
+            当前学生：
+            <strong th:text="${loginUser != null ? loginUser.realName : '未登录'}">学生姓名</strong>
+            （<span th:text="${loginUser != null ? loginUser.username : '-'}">学号</span>）
         </div>
-        <div class="mb-3">
-            <label>学生编号</label>
-            <input type="number" name="studentId" class="form-control" required>
+
+        <div class="checkin-form-group">
+            <label for="scheduleSelect">请选择今日课次：</label>
+
+            <select id="scheduleSelect"
+                    name="scheduleSelect"
+                    title="请选择今日课次"
+                    required>
+                <option value="">正在加载今日课次...</option>
+            </select>
         </div>
-        <div class="mb-3">
-            <label>座位行数</label>
-            <input type="number" name="seatRow" class="form-control" required>
+
+        <div id="emptyTip" class="checkin-empty" style="display: none;">
+            今天暂无可打卡课次，请确认教师是否已设置每周上课时间。
         </div>
-        <div class="mb-3">
-            <label>座位列数</label>
-            <input type="number" name="seatCol" class="form-control" required>
+
+        <div class="attendance-action-row">
+            <button id="checkinBtn"
+                    type="button"
+                    class="attendance-action-button attendance-checkin-button"
+                    onclick="checkin()">
+                ✅ 立即打卡
+            </button>
+
+            <button id="checkoutBtn"
+                    type="button"
+                    class="attendance-action-button attendance-checkout-button"
+                    onclick="checkout()">
+                🚪 立即签退
+            </button>
         </div>
-        <button class="btn btn-primary w-100">立即签到</button>
-    </form>
+
+        <p class="checkin-tip">
+            每门课程每节课每天只能打卡一次，签退前请先完成打卡
+        </p>
+
+    </div>
+
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<div id="customToast" class="custom-toast"></div>
+
+<script>
+    let scheduleOptions = [];
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('customToast');
+
+        toast.innerText = message;
+        toast.className = 'custom-toast ' + type;
+        toast.style.display = 'block';
+
+        setTimeout(function () {
+            toast.style.display = 'none';
+        }, 2000);
+    }
+
+    async function request(url, options = {}) {
+        const response = await fetch(url, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            ...options
+        });
+
+        let result = null;
+        let text = '';
+
+        try {
+            text = await response.text();
+            result = text ? JSON.parse(text) : null;
+        } catch (e) {
+            console.error('服务器返回非 JSON：', text);
+            throw new Error('服务器异常：' + text.substring(0, 100));
+        }
+
+        console.log('接口返回：', url, result);
+
+        if (!response.ok) {
+            throw new Error(result.message || result.msg || result.error || '请求失败，状态码：' + response.status);
+        }
+
+        if (result && result.code !== undefined && result.code !== null) {
+            const code = String(result.code);
+
+            if (code !== '200') {
+                throw new Error(result.message || result.msg || '操作失败');
+            }
+        }
+
+        return result;
+    }
+
+    async function loadTodaySchedules() {
+        const select = document.getElementById('scheduleSelect');
+        const emptyTip = document.getElementById('emptyTip');
+        const checkinBtn = document.getElementById('checkinBtn');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+
+        select.innerHTML = '<option value="">正在加载今日课次...</option>';
+        emptyTip.style.display = 'none';
+
+        checkinBtn.disabled = true;
+        checkoutBtn.disabled = true;
+
+        try {
+            const result = await request('/attendance/checkin/options', {
+                method: 'GET'
+            });
+
+            scheduleOptions = result.data || [];
+
+            select.innerHTML = '<option value="">请选择今日课次</option>';
+
+            if (scheduleOptions.length === 0) {
+                emptyTip.style.display = 'block';
+
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = '今天暂无可打卡课次';
+                select.appendChild(option);
+
+                return;
+            }
+
+            scheduleOptions.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.scheduleId;
+                option.textContent = item.label;
+                select.appendChild(option);
+            });
+
+            checkinBtn.disabled = false;
+            checkoutBtn.disabled = false;
+
+        } catch (e) {
+            select.innerHTML = '<option value="">加载失败</option>';
+            showToast(e.message, 'error');
+        }
+    }
+
+    function getSelectedSchedule() {
+        const scheduleId = document.getElementById('scheduleSelect').value;
+
+        if (!scheduleId) {
+            showToast('请选择今日课次', 'error');
+            return null;
+        }
+
+        const selected = scheduleOptions.find(item => String(item.scheduleId) === String(scheduleId));
+
+        if (!selected) {
+            showToast('课次信息不存在，请刷新页面', 'error');
+            return null;
+        }
+
+        return selected;
+    }
+
+    async function checkin() {
+        const selected = getSelectedSchedule();
+
+        if (!selected) {
+            return;
+        }
+
+        const checkinBtn = document.getElementById('checkinBtn');
+        const oldText = checkinBtn.innerText;
+
+        checkinBtn.disabled = true;
+        checkinBtn.innerText = '打卡提交中...';
+
+        try {
+            await request('/attendance/checkin', {
+                method: 'POST',
+                body: JSON.stringify({
+                    courseId: selected.courseId,
+                    courseScheduleId: selected.scheduleId
+                })
+            });
+
+            showToast('打卡成功', 'success');
+
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally {
+            checkinBtn.disabled = false;
+            checkinBtn.innerText = oldText;
+        }
+    }
+
+    async function checkout() {
+        const selected = getSelectedSchedule();
+
+        if (!selected) {
+            return;
+        }
+
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        const oldText = checkoutBtn.innerText;
+
+        checkoutBtn.disabled = true;
+        checkoutBtn.innerText = '签退提交中...';
+
+        try {
+            await request('/attendance/checkout', {
+                method: 'POST',
+                body: JSON.stringify({
+                    courseId: selected.courseId,
+                    courseScheduleId: selected.scheduleId
+                })
+            });
+
+            showToast('签退成功', 'success');
+
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally {
+            checkoutBtn.disabled = false;
+            checkoutBtn.innerText = oldText;
+        }
+    }
+
+    window.onload = function () {
+        loadTodaySchedules();
+    };
+</script>
+
 </body>
 </html>

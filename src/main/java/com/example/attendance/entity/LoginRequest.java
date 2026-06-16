@@ -1,4 +1,4 @@
-package com.example.attendance.dto;
+package com.example.attendance.entity;
 
 public class LoginRequest {
     private String username;

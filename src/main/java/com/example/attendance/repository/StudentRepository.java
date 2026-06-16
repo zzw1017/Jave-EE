@@ -1,4 +1,4 @@
-package com.example.attendance.Repository;
+package com.example.attendance.repository;
 
 import com.example.attendance.entity.Student;
 import org.springframework.data.domain.Page;

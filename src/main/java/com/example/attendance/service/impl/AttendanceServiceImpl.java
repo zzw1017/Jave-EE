@@ -1,31 +1,120 @@
 package com.example.attendance.service.impl;
 
 import com.example.attendance.dto.AttendanceQueryDTO;
-import com.example.attendance.dto.StatisticsDTO;
 import com.example.attendance.entity.Attendance;
 import com.example.attendance.entity.Course;
-import com.example.attendance.Repository.AttendanceRepository;
-import com.example.attendance.Repository.CourseRepository;
+import com.example.attendance.repository.AttendanceRepository;
+import com.example.attendance.entity.User;
 import com.example.attendance.service.AttendanceService;
+import com.example.attendance.service.CourseService;
 import jakarta.annotation.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import java.sql.Timestamp;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
-import java.util.Optional;
+
 import com.example.attendance.result.ImportResult;
-import org.apache.poi.ss.usermodel.*;
-import java.io.FileInputStream;
-import java.time.format.DateTimeFormatter;
+
 
 @Service
 public class AttendanceServiceImpl implements AttendanceService {
 
     @Resource
     private AttendanceRepository attendanceRepository;
+
     @Resource
-    private CourseRepository courseRepository;
+    private CourseService courseService;
+
+    @Override
+    public String checkIn(Long courseId, User loginUser, String ip) {
+
+        if (courseId == null) {
+            return "请选择课程";
+        }
+
+        if (loginUser == null) {
+            return "请先登录";
+        }
+
+        Course course = findCourseById(courseId);
+
+        if (course == null) {
+            return "课程不存在";
+        }
+
+        Timestamp todayStart = Timestamp.valueOf(LocalDate.now().atStartOfDay());
+        Timestamp tomorrowStart = Timestamp.valueOf(LocalDate.now().plusDays(1).atStartOfDay());
+
+        boolean alreadyChecked = attendanceRepository.existsByUserIdAndCourseIdAndCheckInTimeBetween(
+                loginUser.getId(),
+                courseId,
+                todayStart,
+                tomorrowStart
+        );
+
+        if (alreadyChecked) {
+            return "今天该课程已经打过卡，不能重复打卡";
+        }
+
+        Attendance attendance = new Attendance();
+
+        attendance.setUserId(loginUser.getId());
+        attendance.setUsername(loginUser.getUsername());
+        attendance.setRealName(loginUser.getRealName());
+
+        attendance.setCourseId(course.getId());
+        attendance.setCourseName(course.getCourseName());
+
+        attendance.setCheckInTime(new Timestamp(System.currentTimeMillis()));
+        attendance.setIp(ip);
+        attendance.setStatus("已打卡");
+
+        attendanceRepository.save(attendance);
+
+        return "打卡成功，课程：" + course.getCourseName();
+    }
+
+    @Override
+    public String checkOut(Long id, User loginUser) {
+
+        if (id == null) {
+            return "考勤记录不存在";
+        }
+
+        Attendance attendance = attendanceRepository.findById(id).orElse(null);
+
+        if (attendance == null) {
+            return "考勤记录不存在";
+        }
+
+        if (loginUser == null) {
+            return "请先登录";
+        }
+
+        if (!attendance.getUserId().equals(loginUser.getId())) {
+            return "无权操作该考勤记录";
+        }
+
+        if (attendance.getCheckOutTime() != null) {
+            return "已经签退，不能重复签退";
+        }
+
+        attendance.setCheckOutTime(new Timestamp(System.currentTimeMillis()));
+        attendance.setStatus("已签退");
+
+        attendanceRepository.save(attendance);
+
+        return "签退成功";
+    }
+
+    @Override
+    public Object getStudentStatistics(Long studentId) {
+        return null;
+    }
 
     @Override
     public Attendance create(Attendance attendance) {
@@ -58,169 +147,88 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     @Override
-    public String checkIn(Attendance attendance, String ip) {
-        Optional<Course> courseOpt = courseRepository.findById(attendance.getCourseId());
-        if(courseOpt.isEmpty()){
-            return "失败：该课程不存在";
-        }
-        Course course = courseOpt.get();
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime courseStart = course.getStartTime().toLocalDateTime();
-
-        LocalDateTime validBegin = courseStart.minusMinutes(15);
-        LocalDateTime validEnd = courseStart.plusMinutes(30);
-
-        if(now.isBefore(validBegin)){
-            return "失败：未到签到时间，课程开始前15分钟才可签到";
-        }
-        if(now.isAfter(validEnd)){
-            return "失败：已超出签到时间，课程开始30分钟后禁止签到";
-        }
-
-        Timestamp nowTime = Timestamp.valueOf(now);
-        attendance.setCheckInTime(nowTime);
-        attendance.setCreateTime(nowTime);
-        attendance.setIp(ip);
-
-        if(now.isAfter(courseStart)){
-            attendance.setStatus("迟到");
-        }else{
-            attendance.setStatus("正常");
-        }
-        attendanceRepository.save(attendance);
-        return "签到成功，状态："+attendance.getStatus();
-    }
-
-    @Override
-    public String checkOut(Long id) {
-        Optional<Attendance> attOpt = attendanceRepository.findById(id);
-        if(attOpt.isEmpty()) return "失败：无此签到记录";
-        Attendance att = attOpt.get();
-        if(att.getCheckInTime() == null) return "失败：未签到无法签退";
-
-        Optional<Course> courseOpt = courseRepository.findById(att.getCourseId());
-        if(courseOpt.isEmpty()) return "失败：课程信息不存在";
-        Course course = courseOpt.get();
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime courseEnd = course.getEndTime().toLocalDateTime();
-
-        if(now.isBefore(courseEnd)){
-            att.setStatus("早退");
-        }else{
-            att.setStatus("正常离校");
-        }
-        attendanceRepository.save(att);
-        return "签退成功，状态："+att.getStatus();
-    }
-
-    @Override
     public List<Attendance> filterAttendance(Long courseId, String timeType) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime startTime;
-        switch (timeType){
-            case "today": startTime = now.toLocalDate().atStartOfDay();break;
-            case "week": startTime = now.minusWeeks(1);break;
-            case "month": startTime = now.minusMonths(1);break;
-            default: startTime = now.minusYears(10);
+
+        Timestamp[] range = getTimeRange(timeType);
+
+        boolean hasCourse = courseId != null;
+        boolean hasTime = range != null;
+
+        if (hasCourse && hasTime) {
+            return attendanceRepository.findByCourseIdAndCheckInTimeBetweenOrderByCheckInTimeDesc(
+                    courseId,
+                    range[0],
+                    range[1]
+            );
         }
-        Timestamp start = Timestamp.valueOf(startTime);
-        Timestamp end = Timestamp.valueOf(now);
-        if(courseId != null){
-            return attendanceRepository.findByCourseAndTime(courseId,start,end);
-        }else{
-            return attendanceRepository.findByTimeRange(start,end);
+
+        if (hasCourse) {
+            return attendanceRepository.findByCourseIdOrderByCheckInTimeDesc(courseId);
         }
-    }
-    public AttendanceServiceImpl(AttendanceRepository attendanceRepository) {
-        this.attendanceRepository = attendanceRepository;
+
+        if (hasTime) {
+            return attendanceRepository.findByCheckInTimeBetweenOrderByCheckInTimeDesc(
+                    range[0],
+                    range[1]
+            );
+        }
+
+        return attendanceRepository.findAllByOrderByCheckInTimeDesc();
     }
 
     @Override
     public ImportResult importFromExcel(String filePath) throws Exception {
-        ImportResult result = new ImportResult();
+        return null;
+    }
 
-        try (FileInputStream fis = new FileInputStream(filePath);
-             Workbook workbook = WorkbookFactory.create(fis)) {
+    private Course findCourseById(Long courseId) {
+        List<Course> courses = courseService.findAll();
 
-            Sheet sheet = workbook.getSheetAt(0);
-
-            // 跳过表头，从第2行开始
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-
-                try {
-                    // 读取 Excel 列
-                    String studentId = getCellValue(row.getCell(0));
-                    String courseId = getCellValue(row.getCell(1));
-                    String checkInTime = getCellValue(row.getCell(2));
-                    String seatRow = getCellValue(row.getCell(3));
-                    String seatCol = getCellValue(row.getCell(4));
-                    String status = getCellValue(row.getCell(5));
-
-                    // 非空校验
-                    if (studentId.isEmpty() || courseId.isEmpty()) {
-                        result.incrementFail();
-                        continue;
-                    }
-
-                    // 构建考勤对象
-                    Attendance attendance = new Attendance();
-                    attendance.setStudentId(Long.parseLong(studentId));
-                    attendance.setCourseId(Long.parseLong(courseId));
-                    attendance.setCheckInTime(Timestamp.valueOf(
-                            LocalDateTime.parse(checkInTime, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-                    ));
-                    attendance.setSeatRow(Integer.parseInt(seatRow));
-                    attendance.setSeatCol(Integer.parseInt(seatCol));
-                    attendance.setStatus(status);
-                    attendance.setIp("0.0.0.0");
-
-                    // 保存
-                    attendanceRepository.save(attendance);
-                    result.incrementSuccess();
-
-                } catch (Exception e) {
-                    result.incrementFail();
-                }
+        for (Course course : courses) {
+            if (course.getId().equals(courseId)) {
+                return course;
             }
         }
-        return result;
+
+        return null;
     }
 
-    @Override
-    public long getTotalAttendance(Long studentId) {
-        return attendanceRepository.countByStudentId(studentId);
-    }
+    private Timestamp[] getTimeRange(String timeType) {
 
-    @Override
-    public long getCountByStatus(Long studentId, String status) {
-        return attendanceRepository.countByStudentIdAndStatus(studentId, status);
-    }
-
-    // 工具方法：读取单元格
-    private String getCellValue(Cell cell) {
-        if (cell == null) return "";
-        cell.setCellType(CellType.STRING);
-        return cell.getStringCellValue().trim();
-    }
-
-    @Override
-    public StatisticsDTO getStudentStatistics(Long studentId) {
-        long total = attendanceRepository.countByStudentId(studentId);
-        long normal = attendanceRepository.countByStudentIdAndStatus(studentId, "正常");
-        long late = attendanceRepository.countByStudentIdAndStatus(studentId, "迟到");
-        long absent = attendanceRepository.countByStudentIdAndStatus(studentId, "缺勤");
-        double rate = 0.0;
-        if (total > 0) {
-            rate = (double) normal / total * 100;
+        if (timeType == null || "all".equalsIgnoreCase(timeType)) {
+            return null;
         }
-        return new StatisticsDTO(total, normal, late, absent, rate);
-    }
 
-    @Override
-    public long getTotalAttendanceCount() {
-        return attendanceRepository.count();
+        LocalDateTime start;
+        LocalDateTime end;
+
+        LocalDate today = LocalDate.now();
+
+        switch (timeType) {
+            case "today":
+                start = today.atStartOfDay();
+                end = today.plusDays(1).atStartOfDay();
+                break;
+
+            case "week":
+                LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                start = monday.atStartOfDay();
+                end = monday.plusDays(7).atStartOfDay();
+                break;
+
+            case "month":
+                LocalDate firstDay = today.withDayOfMonth(1);
+                start = firstDay.atStartOfDay();
+                end = firstDay.plusMonths(1).atStartOfDay();
+                break;
+
+            default:
+                return null;
+        }
+
+        return new Timestamp[]{
+                Timestamp.valueOf(start),
+                Timestamp.valueOf(end)
+        };
     }
 }

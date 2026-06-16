@@ -1,10 +1,16 @@
 package com.example.attendance.service;
 
 import com.example.attendance.entity.Course;
+
 import java.util.List;
-import java.util.Optional;
 
 public interface CourseService {
+
     List<Course> findAll();
-    Optional<Course> findById(Long id);
+
+    Course findById(Long id);
+
+    String saveCourse(Long id, String courseName, String startTime, String endTime);
+
+    void deleteById(Long id);
 }

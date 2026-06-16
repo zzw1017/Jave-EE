@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>二维码考勤</title>
+
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css">
+</head>
+
+<body class="qr-body">
+
+<div class="qr-page">
+
+    <div class="qr-header">
+        <a th:href="@{/dashboard}" class="qr-back-home">🏠 返回系统首页</a>
+        <h1>二维码考勤</h1>
+    </div>
+
+    <div class="qr-card">
+
+        <div th:if="${errorMsg}" class="qr-error" th:text="${errorMsg}"></div>
+        <div th:if="${successMsg}" class="qr-success" th:text="${successMsg}"></div>
+
+        <form th:action="@{/attendance/page/qrcode/generate}" method="post" class="qr-form">
+
+            <div class="qr-form-group">
+                <label>请选择课程：</label>
+
+                <select name="courseId" required>
+                    <option value="">请选择课程</option>
+
+                    <option th:each="course : ${courseList}"
+                            th:value="${course.id}"
+                            th:text="${course.courseName}">
+                        课程名称
+                    </option>
+                </select>
+            </div>
+
+            <button type="submit" class="qr-submit-btn">
+                生成考勤二维码
+            </button>
+
+        </form>
+
+        <div th:if="${qrCodeImage}" class="qr-result">
+
+            <h2>课程：<span th:text="${courseName}">课程名称</span></h2>
+
+            <div class="qr-img-box">
+                <img th:src="${qrCodeImage}" alt="考勤二维码">
+            </div>
+
+            <p class="qr-expire">
+                有效期至：
+                <span th:text="${#dates.format(expireTime, 'yyyy-MM-dd HH:mm:ss')}">
+                    2026-06-14 10:00:00
+                </span>
+            </p>
+
+            <p class="qr-tip">
+                学生使用手机扫码后，需要先登录学生账号，系统会自动完成考勤打卡。
+            </p>
+
+            <div class="qr-url">
+                <span>扫码链接：</span>
+                <input type="text" th:value="${scanUrl}" readonly>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

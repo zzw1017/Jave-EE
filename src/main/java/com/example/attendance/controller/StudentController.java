@@ -1,4 +1,4 @@
-/*package com.example.attendance.controller;
+package com.example.attendance.controller;
 
 import com.example.attendance.entity.Student;
 import com.example.attendance.result.Result;
@@ -43,4 +43,4 @@ public class StudentController {
         studentService.deleteById(studentId);
         return Result.success("删除成功");
     }
-}*/
+}

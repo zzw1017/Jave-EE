@@ -1,7 +1,10 @@
 package com.example.attendance.controller;
 
+import com.example.attendance.config.AuthorizationInterceptor;
 import com.example.attendance.entity.User;
 import com.example.attendance.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
@@ -10,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Controller
 public class PageAuthController {
+
     @Autowired
     private UserService userService;
 
@@ -17,9 +21,14 @@ public class PageAuthController {
     private PasswordEncoder passwordEncoder;
 
     @GetMapping("/login")
-    public String loginPage(@RequestParam(required = false) String registered, Model model) {
+    public String loginPage(@RequestParam(required = false) String registered,
+                            @RequestParam(required = false) String passwordChanged,
+                            Model model) {
         if ("true".equals(registered)) {
             model.addAttribute("successMsg", "注册成功，请登录");
+        }
+        if ("true".equals(passwordChanged)) {
+            model.addAttribute("successMsg", "密码修改成功，请使用新密码登录");
         }
         return "login";
     }
@@ -30,13 +39,13 @@ public class PageAuthController {
     }
 
     @PostMapping("/page/register")
-    public String register(
-            @RequestParam String username,
-            @RequestParam String realName,
-            @RequestParam String password,
-            @RequestParam String confirmPassword,
-            @RequestParam(required = false) String role,
-            Model model) {
+    public String register(@RequestParam String username,
+                           @RequestParam String realName,
+                           @RequestParam String password,
+                           @RequestParam String confirmPassword,
+                           @RequestParam String role,
+                           Model model) {
+
         if (username == null || username.trim().isEmpty()) {
             model.addAttribute("errorMsg", "用户名不能为空");
             return "register";
@@ -57,6 +66,19 @@ public class PageAuthController {
             return "register";
         }
 
+        username = username.trim();
+        realName = realName.trim();
+
+        if (!username.matches("^[a-zA-Z0-9_]{4,20}$")) {
+            model.addAttribute("errorMsg", "用户名只能包含4-20位字母、数字或下划线");
+            return "register";
+        }
+
+        if (password.length() < 6) {
+            model.addAttribute("errorMsg", "密码长度不能少于6位");
+            return "register";
+        }
+
         if (!password.equals(confirmPassword)) {
             model.addAttribute("errorMsg", "两次输入的密码不一致");
             return "register";
@@ -66,26 +88,29 @@ public class PageAuthController {
             model.addAttribute("errorMsg", "用户名已存在");
             return "register";
         }
+        if (!"STUDENT".equals(role) && !"TEACHER".equals(role)) {
+            model.addAttribute("errorMsg", "角色选择不正确");
+            return "register";
+        }
 
         User user = new User();
         user.setUsername(username);
         user.setRealName(realName);
         user.setPassword(passwordEncoder.encode(password));
-
-        if (role == null || role.trim().isEmpty()) {
-            user.setRole("STUDENT");
-        } else {
-            user.setRole(role);
-        }
+        user.setRole(role);
 
         userService.addUser(user);
+
         return "redirect:/login?registered=true";
+
     }
 
     @PostMapping("/page/login")
     public String login(@RequestParam String username,
                         @RequestParam String password,
-                        Model model) {
+                        Model model,
+                        HttpServletRequest request) {
+
         if (username == null || username.trim().isEmpty()) {
             model.addAttribute("errorMsg", "用户名不能为空");
             return "login";
@@ -96,24 +121,139 @@ public class PageAuthController {
             return "login";
         }
 
-        User user = userService.findByUsernameOrNull(username);
+        User user = userService.findByUsernameOrNull(username.trim());
 
-        if (user == null) {
-            model.addAttribute("errorMsg", "用户名不存在");
+        if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
+            model.addAttribute("errorMsg", "用户名或密码错误");
             return "login";
         }
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            model.addAttribute("errorMsg", "用户名或密码错误");
-            return "login";
+        HttpSession oldSession = request.getSession(false);
+        if (oldSession != null) {
+            oldSession.invalidate();
+        }
+
+        HttpSession session = request.getSession(true);
+
+        User loginUser = new User(
+                user.getUsername(),
+                user.getId(),
+                user.getRealName(),
+                null,
+                user.getCreateTime(),
+                user.getRole(),
+                user.getMustChangePassword()
+        );
+
+        session.setAttribute(AuthorizationInterceptor.SESSION_USER, loginUser);
+
+        if (Boolean.TRUE.equals(user.getMustChangePassword())) {
+            return "redirect:/page/password?firstLogin=true";
         }
 
         return "redirect:/dashboard";
     }
 
     @GetMapping("/dashboard")
-    public String dashboard(Model model) {
+    public String dashboard(@RequestParam(required = false) String permissionDenied,
+                            Model model,
+                            HttpSession session) {
+
+        User user = (User) session.getAttribute(AuthorizationInterceptor.SESSION_USER);
+
+        if (user == null) {
+            return "redirect:/login";
+        }
+
         model.addAttribute("title", "班级考勤管理系统首页");
+        model.addAttribute("loginUser", user);
+
+        String role = user.getRole();
+        boolean isManager = "ADMIN".equalsIgnoreCase(role)
+                || "TEACHER".equalsIgnoreCase(role);
+
+        model.addAttribute("isManager", isManager);
+
+        if ("true".equals(permissionDenied)) {
+            model.addAttribute("errorMsg", "学生账号只能使用考勤打卡功能");
+        }
+
         return "dashboard";
+    }
+
+    @GetMapping("/page/logout")
+    public String logout(HttpSession session) {
+        session.invalidate();
+        return "redirect:/login";
+    }
+
+    @GetMapping("/page/password")
+    public String passwordPage(@RequestParam(required = false) String firstLogin,
+                               Model model,
+                               HttpSession session) {
+
+        User sessionUser = (User) session.getAttribute(AuthorizationInterceptor.SESSION_USER);
+
+        if (sessionUser == null) {
+            return "redirect:/login";
+        }
+
+        if ("true".equals(firstLogin)) {
+            model.addAttribute("firstLogin", true);
+        }
+
+        return "password";
+    }
+
+    @PostMapping("/page/password")
+    public String changePassword(@RequestParam String oldPassword,
+                                 @RequestParam String newPassword,
+                                 @RequestParam String confirmPassword,
+                                 Model model,
+                                 HttpSession session) {
+
+        User sessionUser = (User) session.getAttribute(AuthorizationInterceptor.SESSION_USER);
+
+        if (sessionUser == null) {
+            return "redirect:/login";
+        }
+
+        if (oldPassword == null || oldPassword.trim().isEmpty()
+                || newPassword == null || newPassword.trim().isEmpty()
+                || confirmPassword == null || confirmPassword.trim().isEmpty()) {
+            model.addAttribute("errorMsg", "请填写完整的新旧密码");
+            return "password";
+        }
+
+        if (!newPassword.equals(confirmPassword)) {
+            model.addAttribute("errorMsg", "两次输入的新密码不一致");
+            return "password";
+        }
+
+        if (newPassword.length() < 6) {
+            model.addAttribute("errorMsg", "新密码长度不能少于6位");
+            return "password";
+        }
+
+        if (newPassword.equals(oldPassword)) {
+            model.addAttribute("errorMsg", "新密码不能与旧密码相同");
+            return "password";
+        }
+
+        User current = userService.findById(sessionUser.getId());
+
+        if (current == null || !passwordEncoder.matches(oldPassword, current.getPassword())) {
+            model.addAttribute("errorMsg", "旧密码不正确");
+            return "password";
+        }
+
+        current.setPassword(passwordEncoder.encode(newPassword));
+        current.setMustChangePassword(false);
+
+        userService.updateUser(current);
+
+        session.invalidate();
+
+        return "redirect:/login?passwordChanged=true";
     }
 }

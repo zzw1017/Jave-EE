@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>批量导入学生信息</title>
+
+  <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body class="student-import-body">
+
+<div class="student-import-page">
+
+  <div class="student-import-top-bar">
+    <a th:href="@{/student/page/list}" class="student-import-back-link">
+      ← 返回学生列表
+    </a>
+  </div>
+
+  <div class="student-import-wrapper">
+
+    <div class="student-import-card">
+
+      <div class="student-import-title">
+        <h2>批量导入学生名册</h2>
+        <p>请选择 Excel 文件，系统会自动解析学生信息并导入数据库</p>
+      </div>
+
+      <div th:if="${error}"
+           class="student-import-error"
+           th:text="${error}">
+      </div>
+
+      <div th:if="${success}"
+           class="student-import-success"
+           th:text="${success}">
+      </div>
+
+      <div id="clientError" class="student-import-client-error"></div>
+
+      <form id="importForm"
+            th:action="@{/student/page/import}"
+            method="post"
+            enctype="multipart/form-data">
+
+        <div class="student-import-upload-box">
+
+          <div class="student-import-upload-icon">📄</div>
+
+          <div class="student-import-upload-title">
+            选择学生 Excel 文件
+          </div>
+
+          <div class="student-import-upload-tip">
+            支持 .xlsx / .xls 格式，文件大小不超过 10MB
+          </div>
+
+          <label for="file" class="student-import-file-label">
+            选择文件
+          </label>
+
+          <input id="file"
+                 class="student-import-file-input"
+                 type="file"
+                 name="file"
+                 accept=".xlsx,.xls"
+                 required>
+
+          <div id="fileName" class="student-import-file-name">
+            暂未选择文件
+          </div>
+
+        </div>
+
+        <div class="student-import-format-box">
+          <h3>Excel 格式要求</h3>
+
+          <ul>
+            <li>第一行建议作为表头。</li>
+            <li>建议字段包含：学号、姓名、性别、班级、年龄、出生日期、联系方式。</li>
+            <li>手机号建议使用 11 位大陆手机号格式。</li>
+            <li>出生日期建议使用 yyyy-MM-dd 格式，例如：2003-09-01。</li>
+          </ul>
+        </div>
+
+        <div class="student-import-submit-row">
+          <button id="submitBtn"
+                  type="submit"
+                  class="student-import-submit-btn">
+            ⚡ 上传并解析入库
+          </button>
+        </div>
+
+      </form>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  const fileInput = document.getElementById("file");
+  const fileName = document.getElementById("fileName");
+  const form = document.getElementById("importForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const clientError = document.getElementById("clientError");
+
+  const maxSize = 10 * 1024 * 1024;
+
+  function showError(message) {
+    clientError.style.display = "block";
+    clientError.innerText = message;
+  }
+
+  function clearError() {
+    clientError.style.display = "none";
+    clientError.innerText = "";
+  }
+
+  fileInput.addEventListener("change", function () {
+    clearError();
+
+    const file = this.files[0];
+
+    if (!file) {
+      fileName.innerText = "暂未选择文件";
+      return;
+    }
+
+    const lowerName = file.name.toLowerCase();
+
+    if (!lowerName.endsWith(".xlsx") && !lowerName.endsWith(".xls")) {
+      showError("文件格式不正确，请上传 .xlsx 或 .xls 文件。");
+      this.value = "";
+      fileName.innerText = "暂未选择文件";
+      return;
+    }
+
+    if (file.size > maxSize) {
+      showError("文件大小不能超过 10MB。");
+      this.value = "";
+      fileName.innerText = "暂未选择文件";
+      return;
+    }
+
+    fileName.innerText = "已选择：" + file.name;
+  });
+
+  form.addEventListener("submit", function (event) {
+    clearError();
+
+    const file = fileInput.files[0];
+
+    if (!file) {
+      event.preventDefault();
+      showError("请先选择 Excel 文件。");
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = "解析导入中，请稍候...";
+    submitBtn.style.opacity = "0.8";
+  });
+</script>
+
+</body>
+</html>
