@@ -2553,3 +2553,254 @@ button:hover {
         height: 220px;
     }
 }
+
+.btn-warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+    color: white;
+    text-decoration: none;
+}
+
+/* =========================
+   考勤数据导入页面 attendance-import
+   ========================= */
+
+.attendance-import-body {
+    background: #f7f8fa;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    font-family: "Microsoft YaHei", sans-serif;
+}
+
+.attendance-import-page {
+    padding: 20px 0 40px;
+}
+
+.attendance-import-top-bar {
+    max-width: 820px;
+    margin: 20px auto 15px;
+}
+
+.attendance-import-back-link {
+    display: inline-block;
+    width: auto;
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    transition: all 0.25s ease;
+}
+
+.attendance-import-back-link:hover {
+    color: #764ba2;
+    transform: translateY(-1px);
+    text-decoration: none;
+}
+
+.attendance-import-card {
+    max-width: 820px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.attendance-import-title {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.attendance-import-title h1 {
+    color: #1f2937;
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.attendance-import-title p {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.attendance-import-error,
+.attendance-import-client-error {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    font-size: 14px;
+}
+
+.attendance-import-client-error {
+    display: none;
+}
+
+.attendance-import-success {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+    font-size: 14px;
+}
+
+.attendance-import-upload-box {
+    border: 2px dashed #c7d2fe;
+    background: #f8fafc;
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+    transition: all 0.25s ease;
+}
+
+.attendance-import-upload-box:hover {
+    border-color: #667eea;
+    background: #f5f7ff;
+}
+
+.attendance-import-upload-icon {
+    font-size: 42px;
+    margin-bottom: 10px;
+}
+
+.attendance-import-upload-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 6px;
+}
+
+.attendance-import-upload-tip {
+    font-size: 13px;
+    color: #6b7280;
+    margin-bottom: 16px;
+}
+
+.attendance-import-file-input {
+    display: none;
+}
+
+.attendance-import-file-label {
+    display: inline-block;
+    width: auto;
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    color: #ffffff;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.25s ease;
+}
+
+.attendance-import-file-label:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(102, 126, 234, 0.25);
+}
+
+.attendance-import-file-name {
+    margin-top: 14px;
+    font-size: 14px;
+    color: #374151;
+    word-break: break-all;
+}
+
+.attendance-import-format-box,
+.attendance-import-template-box {
+    margin-top: 22px;
+    padding: 16px;
+    border-radius: 12px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+}
+
+.attendance-import-format-box h3,
+.attendance-import-template-box h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #111827;
+}
+
+.attendance-import-format-box ul {
+    margin: 0;
+    padding-left: 18px;
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.attendance-import-template-box table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.attendance-import-template-box th,
+.attendance-import-template-box td {
+    border: 1px solid #e5e7eb;
+    padding: 9px;
+    text-align: center;
+    font-size: 13px;
+}
+
+.attendance-import-template-box th {
+    background: #f8fafc;
+    color: #111827;
+}
+
+.attendance-import-submit-btn {
+    width: 100%;
+    margin-top: 24px;
+    padding: 13px 18px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    text-align: center;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    color: white;
+    font-size: 15px;
+}
+
+.attendance-import-submit-btn:hover {
+    opacity: 0.92;
+}
+
+.attendance-import-submit-btn:disabled {
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .attendance-import-top-bar,
+    .attendance-import-card {
+        max-width: 100%;
+        margin-left: 15px;
+        margin-right: 15px;
+    }
+
+    .attendance-import-card {
+        padding: 22px;
+    }
+
+    .attendance-import-title h1 {
+        font-size: 24px;
+    }
+
+    .attendance-import-template-box {
+        overflow-x: auto;
+    }
+
+    .attendance-import-template-box table {
+        min-width: 760px;
+    }
+}

@@ -43,7 +43,15 @@
         <a th:href="@{/attendance/page/list}" class="btn btn-secondary">重置</a>
       </form>
 
+
       <div class="toolbar-right">
+
+        <a th:href="@{/attendance/page/import}"
+           class="btn btn-warning">
+          Excel 导入
+        </a>
+
+
         <a th:href="@{/attendance/page/export(courseId=${courseId}, timeType=${timeType})}"
            class="btn btn-success">
           导出 Excel

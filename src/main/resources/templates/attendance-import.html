@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>考勤数据导入</title>
+
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css">
+</head>
+
+<body class="attendance-import-body">
+
+<div class="attendance-import-page">
+
+    <div class="attendance-import-top-bar">
+        <a th:href="@{/attendance/page/list}" class="attendance-import-back-link">
+            ← 返回考勤记录
+        </a>
+    </div>
+
+    <div class="attendance-import-card">
+
+        <div class="attendance-import-title">
+            <h1>考勤数据导入</h1>
+            <p>请选择 Excel 文件，系统会自动解析并导入考勤记录</p>
+        </div>
+
+        <div th:if="${error}" class="attendance-import-error" th:text="${error}"></div>
+        <div th:if="${success}" class="attendance-import-success" th:text="${success}"></div>
+
+        <div id="clientError" class="attendance-import-client-error"></div>
+
+        <form id="importForm"
+              th:action="@{/attendance/page/import}"
+              method="post"
+              enctype="multipart/form-data">
+
+            <div class="attendance-import-upload-box">
+
+                <div class="attendance-import-upload-icon">📊</div>
+
+                <div class="attendance-import-upload-title">
+                    选择考勤 Excel 文件
+                </div>
+
+                <div class="attendance-import-upload-tip">
+                    支持 .xlsx / .xls 格式，文件大小不超过 10MB
+                </div>
+
+                <label for="file" class="attendance-import-file-label">
+                    选择文件
+                </label>
+
+                <input id="file"
+                       class="attendance-import-file-input"
+                       type="file"
+                       name="file"
+                       accept=".xlsx,.xls"
+                       required>
+
+                <div id="fileName" class="attendance-import-file-name">
+                    暂未选择文件
+                </div>
+
+            </div>
+
+            <div class="attendance-import-format-box">
+                <h3>Excel 格式要求</h3>
+
+                <ul>
+                    <li>第一行必须是表头。</li>
+                    <li>推荐字段：学生姓名、用户名、课程、打卡时间、签退时间、打卡IP、状态。</li>
+                    <li>用户名必须已存在于 user 表。</li>
+                    <li>课程名称必须已存在于 course 表。</li>
+                    <li>打卡时间不能为空，建议格式：yyyy-MM-dd HH:mm:ss。</li>
+                    <li>签退时间可以为空，也可以填写“未签退”。</li>
+                </ul>
+            </div>
+
+            <div class="attendance-import-template-box">
+                <h3>示例表头</h3>
+
+                <table>
+                    <thead>
+                    <tr>
+                        <th>学生姓名</th>
+                        <th>用户名</th>
+                        <th>课程</th>
+                        <th>打卡时间</th>
+                        <th>签退时间</th>
+                        <th>打卡IP</th>
+                        <th>状态</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    <tr>
+                        <td>朱正威</td>
+                        <td>42411121</td>
+                        <td>Java程序设计</td>
+                        <td>2026-06-13 21:53:34</td>
+                        <td>未签退</td>
+                        <td>192.168.1.10</td>
+                        <td>已打卡</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <button id="submitBtn"
+                    type="submit"
+                    class="attendance-import-submit-btn">
+                上传并导入
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+<script>
+    const fileInput = document.getElementById("file");
+    const fileName = document.getElementById("fileName");
+    const form = document.getElementById("importForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const clientError = document.getElementById("clientError");
+
+    const maxSize = 10 * 1024 * 1024;
+
+    function showError(message) {
+        clientError.style.display = "block";
+        clientError.innerText = message;
+    }
+
+    function clearError() {
+        clientError.style.display = "none";
+        clientError.innerText = "";
+    }
+
+    fileInput.addEventListener("change", function () {
+        clearError();
+
+        const file = this.files[0];
+
+        if (!file) {
+            fileName.innerText = "暂未选择文件";
+            return;
+        }
+
+        const lowerName = file.name.toLowerCase();
+
+        if (!lowerName.endsWith(".xlsx") && !lowerName.endsWith(".xls")) {
+            showError("文件格式不正确，请上传 .xlsx 或 .xls 文件。");
+            this.value = "";
+            fileName.innerText = "暂未选择文件";
+            return;
+        }
+
+        if (file.size > maxSize) {
+            showError("文件大小不能超过 10MB。");
+            this.value = "";
+            fileName.innerText = "暂未选择文件";
+            return;
+        }
+
+        fileName.innerText = "已选择：" + file.name;
+    });
+
+    form.addEventListener("submit", function (event) {
+        clearError();
+
+        const file = fileInput.files[0];
+
+        if (!file) {
+            event.preventDefault();
+            showError("请先选择 Excel 文件。");
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = "导入中，请稍候...";
+        submitBtn.style.opacity = "0.8";
+    });
+</script>
+
+</body>
+</html>
